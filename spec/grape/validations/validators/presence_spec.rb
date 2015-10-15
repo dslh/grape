@@ -214,4 +214,60 @@ describe Grape::Validations::PresenceValidator do
       expect(last_response.body).to eq('Hello optional'.to_json)
     end
   end
+
+  context 'complex configurations' do
+    before do
+      subject.params do
+        requires :a, type: Hash do
+          requires :b, type: Array do
+            requires :c, type: Integer
+            requires :d, type: Integer
+            optional :e, type: Array do
+              optional :f, type: Hash do
+                requires :g, type: String
+                optional :h, type: String
+              end
+            end
+          end
+        end
+      end
+      subject.get '/' do
+        'validated'
+      end
+    end
+
+    it 'does not require params in nonexistent parents' do
+      get '/', a: { b: [{ c: 1, d: 2, e: [] }] }
+      expect(last_response.status).to eq(200)
+    end
+  end
+
+  context 'with requires inside optional' do
+    before do
+      subject.params do
+        optional :a, type: Hash do
+          requires :b
+          optional :c
+        end
+        optional :d
+      end
+      subject.get '/' do
+        'requires inside optional'
+      end
+    end
+
+    it 'validates presence when parent exists' do
+      get '/', a: { b: 1 }
+      expect(last_response.status).to eq(200)
+
+      get '/', a: { c: 2 }
+      expect(last_response.status).to eq(400)
+      expect(last_response.body).to eq('{"error":"a[b] is missing"}')
+    end
+
+    it "doesn't validate when parent is not present" do
+      get '/', d: 3
+      expect(last_response.status).to eq(200)
+    end
+  end
 end
